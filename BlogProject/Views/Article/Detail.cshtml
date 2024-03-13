@@ -1,0 +1,73 @@
+﻿@model Article;
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<AppUser> UserManager
+
+@{
+    var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+}
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-lg-8">
+            <h1 class="mt-4">@Model.Title</h1>
+           
+            <hr>
+            <p>@Model.Content</p>
+     
+        </div>
+    </div>
+</div>
+
+<section>
+    <div class="container my-5 py-5 text-dark">
+        <div class="row d-flex justify-content-center">
+            <div class="col-md-12 col-lg-10 col-xl-8">
+                @foreach (var item in Model.Comments)
+                {
+                    <div class="card mb-3">
+                        <div class="card-body">
+                            <div class="d-flex flex-start">
+                                <div class="w-100">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="text-primary fw-bold mb-0">
+                                            @item.AppUser.UserName
+                                            <span class="text-dark ms-2">@item.Content</span>
+                                        </h6>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        @if (User.Identity.IsAuthenticated && (User.IsInRole("admin") || userId == item.AppUser.Id))
+                                        {
+                                            <form method="post" asp-controller="comment" asp-action="Delete" asp-route-commentId="@item.Id" asp-route-articleId="@Model.Id">
+                                                <button type="submit" class="btn btn-danger">Remove</button>
+                                            </form>
+                                        }
+                                        <div class="d-flex flex-row">
+                                            <i class="fas fa-star text-warning me-2"></i>
+                                            <i class="far fa-check-circle" style="color: #aaa;"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</section>
+
+@if (User.Identity.IsAuthenticated && (User.IsInRole("admin") || User.IsInRole("user")))
+{
+    <a class="btn btn-sm btn-outline-secondary" asp-controller="Comment" asp-route-articleId="@Model.Id" asp-action="Create">Add comment</a>
+}
+<br />
+@if (User.Identity.IsAuthenticated && User.IsInRole("admin"))
+{
+    <a class="btn btn-primary mt-2 mb-2" asp-action="Edit" asp-route-id="@Model.Id">Edit Article</a>
+ 
+    <form method="post" asp-action="Delete" asp-route-articleId="@Model.Id">
+        <button type="submit" class="btn btn-danger d-inline-block">Delete Article</button>
+    </form>
+}
+
