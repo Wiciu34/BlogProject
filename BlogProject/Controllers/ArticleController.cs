@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 
 namespace BlogProject.Controllers;
 
@@ -13,6 +14,7 @@ public class ArticleController : Controller
 {
     private readonly IArticleRepository articleRepository;
     private readonly IPhotoService photoService;
+    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _articleSemaphores = new ConcurrentDictionary<int, SemaphoreSlim>();
 
     public ArticleController(IArticleRepository articleRepository, IPhotoService photoService)
     {
@@ -115,6 +117,14 @@ public class ArticleController : Controller
             return NotFound();
         }
 
+        var semaphore = findSemaphore(id);
+
+        if(!await semaphore.WaitAsync(0))
+        {
+            TempData["Warning"] = "This article is edited now";
+            return RedirectToAction("Detail", "Article", new {id = id});
+        }
+
         var article = await articleRepository.GetById(id);
 
         if (article == null)
@@ -124,13 +134,14 @@ public class ArticleController : Controller
 
         var articleVM = new EditArticleViewModel
         {
+            Id = id,
             Title = article.Title,
-            Content = article.Content,  
+            Content = article.Content,
             Category = article.Category,
             URL = article.Image
         };
         return View(articleVM);
-        
+
     }
 
     [Authorize(Roles = "admin")]
@@ -139,7 +150,7 @@ public class ArticleController : Controller
     {
         if (!ModelState.IsValid)
         {
-            ModelState.AddModelError("", "Failed to edit club");
+            ModelState.AddModelError("", "Failed to edit article");
             return View(articleVM);
         }
 
@@ -177,6 +188,9 @@ public class ArticleController : Controller
 
         await articleRepository.Update(article);
 
+        var semaphore = findSemaphore(id);
+        semaphore.Release();
+
         return RedirectToAction("Detail", "Article", new { id });
     }
 
@@ -186,5 +200,31 @@ public class ArticleController : Controller
     {
         await articleRepository.Delete(articleId);
         return RedirectToAction("Index");
+    }
+
+    [Authorize(Roles = "admin")]
+    public Task<IActionResult> BackToDetails(int id)
+    {
+        var semaphore = findSemaphore(id);
+        semaphore.Release();
+        return Task.FromResult<IActionResult>(RedirectToAction("Detail", "Article", new { id = id }));
+    }
+
+    [Authorize(Roles = "admin")]
+    [HttpPost]
+    public IActionResult ReleaseLock(int id)
+    {
+        var semaphore = findSemaphore(id);
+        if (semaphore != null)
+        {
+            semaphore.Release();
+        }
+        return Ok();
+    }
+
+    public SemaphoreSlim findSemaphore(int id)
+    {
+        var semaphore = _articleSemaphores.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
+        return semaphore;
     }
 }

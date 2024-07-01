@@ -7,6 +7,13 @@
     var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 }
 
+@if (TempData["Warning"] != null)
+{
+    <div class="col-md-12 alert alert-warning">
+        <span><b>Sorry!</b> - @TempData["Warning"]</span>
+    </div>
+}
+
 <div class="container mt-5">
     <div class="row">
         <div class="col-lg-8">
