@@ -121,7 +121,7 @@ public class ArticleController : Controller
 
         if(!await semaphore.WaitAsync(0))
         {
-            TempData["Warning"] = "This article is edited now";
+            TempData["Warning"] = "This article is edited or deleted now";
             return RedirectToAction("Detail", "Article", new {id = id});
         }
 
@@ -195,19 +195,47 @@ public class ArticleController : Controller
     }
 
     [Authorize(Roles = "admin")]
-    [HttpPost]
-    public async Task<IActionResult> Delete(int articleId) 
+    public async Task<IActionResult> Delete(int id)
     {
+        var semaphore = findSemaphore(id);
+
+        if (!await semaphore.WaitAsync(0))
+        {
+            TempData["Warning"] = "This article is edited or deleted now";
+            return RedirectToAction("Detail", "Article", new { id = id });
+        }
+
+        Article? article = await articleRepository.GetById(id);
+        return View(article);
+    }
+
+    [Authorize(Roles = "admin")]
+    [HttpPost]
+    public async Task<IActionResult> DeleteConfirmed(int articleId) 
+    {
+        var semaphore = findSemaphore(articleId);
+
         await articleRepository.Delete(articleId);
+
+        if (semaphore != null)
+        {
+            semaphore.Release();
+        }
+
         return RedirectToAction("Index");
     }
 
     [Authorize(Roles = "admin")]
-    public Task<IActionResult> BackToDetails(int id)
+    public IActionResult BackToDetails(int id)
     {
         var semaphore = findSemaphore(id);
-        semaphore.Release();
-        return Task.FromResult<IActionResult>(RedirectToAction("Detail", "Article", new { id = id }));
+
+        if (semaphore.CurrentCount == 0)
+        {
+            semaphore.Release();
+        }
+        
+        return RedirectToAction("Detail", "Article", new { id = id });
     }
 
     [Authorize(Roles = "admin")]
