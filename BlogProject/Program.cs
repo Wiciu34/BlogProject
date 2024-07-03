@@ -16,6 +16,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddScoped<IArticleRepository, ArticleRepository>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();
+builder.Services.AddScoped<ISemaphoreService, SemaphoreService>();
 
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 

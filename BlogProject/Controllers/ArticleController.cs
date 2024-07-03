@@ -14,12 +14,13 @@ public class ArticleController : Controller
 {
     private readonly IArticleRepository articleRepository;
     private readonly IPhotoService photoService;
-    private static readonly ConcurrentDictionary<int, SemaphoreSlim> _articleSemaphores = new ConcurrentDictionary<int, SemaphoreSlim>();
+    private readonly ISemaphoreService serviceSemaphore;
 
-    public ArticleController(IArticleRepository articleRepository, IPhotoService photoService)
+    public ArticleController(IArticleRepository articleRepository, IPhotoService photoService, ISemaphoreService serviceSemaphore)
     {
         this.articleRepository = articleRepository;
         this.photoService = photoService;
+        this.serviceSemaphore = serviceSemaphore;
     }
     public async Task<IActionResult> Index(string category, string searchString, int? pageNumber)
     {
@@ -117,7 +118,7 @@ public class ArticleController : Controller
             return NotFound();
         }
 
-        var semaphore = findSemaphore(id);
+        var semaphore = serviceSemaphore.findSemaphore(id);
 
         if(!await semaphore.WaitAsync(0))
         {
@@ -188,7 +189,7 @@ public class ArticleController : Controller
 
         await articleRepository.Update(article);
 
-        var semaphore = findSemaphore(id);
+        var semaphore = serviceSemaphore.findSemaphore(id);
         semaphore.Release();
 
         return RedirectToAction("Detail", "Article", new { id });
@@ -197,7 +198,7 @@ public class ArticleController : Controller
     [Authorize(Roles = "admin")]
     public async Task<IActionResult> Delete(int id)
     {
-        var semaphore = findSemaphore(id);
+        var semaphore = serviceSemaphore.findSemaphore(id);
 
         if (!await semaphore.WaitAsync(0))
         {
@@ -213,7 +214,7 @@ public class ArticleController : Controller
     [HttpPost]
     public async Task<IActionResult> DeleteConfirmed(int articleId) 
     {
-        var semaphore = findSemaphore(articleId);
+        var semaphore = serviceSemaphore.findSemaphore(articleId);
 
         await articleRepository.Delete(articleId);
 
@@ -228,7 +229,7 @@ public class ArticleController : Controller
     [Authorize(Roles = "admin")]
     public IActionResult BackToDetails(int id)
     {
-        var semaphore = findSemaphore(id);
+        var semaphore = serviceSemaphore.findSemaphore(id);
 
         if (semaphore.CurrentCount == 0)
         {
@@ -242,17 +243,11 @@ public class ArticleController : Controller
     [HttpPost]
     public IActionResult ReleaseLock(int id)
     {
-        var semaphore = findSemaphore(id);
+        var semaphore = serviceSemaphore.findSemaphore(id);
         if (semaphore != null)
         {
             semaphore.Release();
         }
         return Ok();
-    }
-
-    public SemaphoreSlim findSemaphore(int id)
-    {
-        var semaphore = _articleSemaphores.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
-        return semaphore;
     }
 }
